@@ -14,6 +14,10 @@ static void die(std::string_view msg) {
     abort();
 }
 
+static void msg(std::string_view msg) {
+    fprintf(stderr, "%s\n", msg.data());
+}
+
 static int32_t read_full(int fd, char *buf, size_t n) {
     while (n > 0) {
         ssize_t rv = read(fd, buf, n);
@@ -57,29 +61,29 @@ void do_something(int connfd) {
 const size_t k_max_msg = 4096;
 
 static int32_t one_request(int connfd) {
-    std::array<char, 4+k_max_msg> rbuf;
+    char rbuf[4 + k_max_msg];
     errno = 0;
-    int32_t err = read_full(connfd, rbuf.data(), 4);
+    int32_t err = read_full(connfd, rbuf, 4);
     if (err) {
-        die(errno == 0 ? "EOF" : "read() error");
+        msg(errno == 0 ? "EOF" : "read() error");
         return err;
     }
     uint32_t len = 0;
-    memcpy(&len, rbuf.data(), 4); // network byte order
+    memcpy(&len, rbuf, 4); // network byte order
 
     if (len > k_max_msg) {
-        die("too long");
+        msg("too long");
         return -1;
     }
     // body
-    err = read_full(connfd, rbuf.data() + 4, len);
+    err = read_full(connfd, &rbuf[4], len);
     if (err) {
-        die("read() error");
+        msg("read() error");
         return err;
     }
-    printf("Client says: %.*s\n", len , rbuf.data() + 4);
+    fprintf(stderr, "Client says: %.*s\n", len , &rbuf[4]);
 
-    const char reply[] = {'w', 'o', 'r', 'l', 'd', '!', '\0'};
+    const char reply[] = "world.";
     char wbuf[4 + sizeof(reply)];
     len = (uint32_t)strlen(reply);
     memcpy(wbuf, &len, 4);
@@ -120,8 +124,6 @@ int main() {
                 break;
             }
         }
-
-        do_something(connfd);
         close(connfd);
     }
     return 0;
